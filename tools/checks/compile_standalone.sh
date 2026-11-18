@@ -12,9 +12,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 STUB_ROOT="${TMPDIR:-/tmp}/hbmzz-compile-stub-$$"
-
-cleanup() { rm -rf "$STUB_ROOT"; }
-trap cleanup EXIT
+# 不做自动删除：Windows 安全策略会拦截对临时目录的递归删除，且残留在系统临时目录无害。
+# 每次用 $$ 生成唯一目录，不使用固定路径覆盖写。
 
 mkdir -p "$STUB_ROOT/src/net/minecraft/nbt" \
          "$STUB_ROOT/src/net/minecraft/tileentity" \
@@ -68,8 +67,13 @@ if [ -z "$JAVAC" ]; then
   exit 1
 fi
 
-# 收集桩 + 项目全部源码
-find "$STUB_ROOT/src" "$REPO_ROOT/src/main/java" -name '*.java' > "$STUB_ROOT/sources.txt"
+# 收集桩 + 项目全部源码，统一转成 Windows 绝对路径。
+# Git Bash (MSYS) 会把 C:/... 形式的参数改写成 \c\...，javac 不认；
+# cygpath -w 得到 C:\... 反斜杠形式，写进 @argfile 后 javac 才能正确读取。
+: > "$STUB_ROOT/sources.txt"
+while IFS= read -r f; do
+  cygpath -w "$f" >> "$STUB_ROOT/sources.txt"
+done < <(find "$STUB_ROOT/src" "$REPO_ROOT/src/main/java" -name '*.java')
 SRC_COUNT=$(wc -l < "$STUB_ROOT/sources.txt")
 
 echo "== standalone 交叉编译 =="
