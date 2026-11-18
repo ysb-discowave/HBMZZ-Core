@@ -15,7 +15,7 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 # 各路候选脚本名（相对本脚本所在目录），按优先级取第一个存在的
 REACTOR_CANDIDATES=(check_reactor_offline.sh check_reactor.sh)
 DEPS_CANDIDATES=(check_dependency_offline.sh check_self_dependency_offline.sh check_self_dependency.sh)
-COMPAT_CANDIDATES=(check_compat_offline.sh check_cursed_compat_offline.sh check_compat.sh)
+COMPAT_CANDIDATES=(check_compat_offline.sh check_cursed_compat.sh check_cursed_compat_offline.sh check_compat.sh)
 
 declare -a RESULTS=()   # 元素格式: "STATUS|lane|detail"
 OVERALL=0
