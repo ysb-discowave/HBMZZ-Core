@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ServiceLoader;
 
 import com.hbmzz.reactor.ReactorController;
 import com.hbmzz.reactor.ReactorRegistry;
@@ -30,9 +29,11 @@ import com.hbmzz.reactor.ReactorRegistry;
 /**
  * 模块加载门面。
  *
- * <p>持有模块注册表与 reactor 注册门面（仅接口类型），提供注册、查询与生命周期入口。
- * 本类只通过 {@code com.hbmzz.reactor.ReactorRegistry} / {@code ReactorController} 接口
- * 使用反应堆能力，不 {@code new} 任何具体实现，也不引用诅咒版类。
+ * <p>持有模块注册表与 reactor 注册门面，提供注册、查询与生命周期入口。
+ * reactor 侧是 {@code ReactorRegistry}（final class + 单例）与 {@code ReactorController}
+ * （abstract class）的组合，读取边界在 {@code com.hbmzz.reactor.api.ReactorGateway}。
+ * 本类通过单例获取注册表、通过公开方法注册/查询控制器，不 {@code new} reactor 实现，
+ * 也不引用诅咒版类，依赖方向单向指向自有 reactor 体系。
  */
 public final class HbmzzModules implements ModuleRegistry {
 
@@ -44,31 +45,31 @@ public final class HbmzzModules implements ModuleRegistry {
     }
 
     /**
-     * standalone 默认构建方式：通过 {@link ServiceLoader} 发现 reactor 实现（可插拔），
-     * 实现方在 {@code META-INF/services/com.hbmzz.reactor.ReactorRegistry} 注册即可。
+     * standalone 默认构建方式：取得自有 reactor 注册表单例并安装为全局网关。
+     *
+     * <p>{@link ReactorRegistry#instance()} 返回 final class 的单例，不是服务可发现的接口；
+     * {@link ReactorRegistry#install()} 内部只是把本单例绑定到
+     * {@code ReactorGateway}，重复调用幂等，因此这里每次构建都安全调用一次即可。
      */
     public static HbmzzModules createStandalone() {
-        return new HbmzzModules(discoverReactorRegistry());
+        ReactorRegistry registry = ReactorRegistry.instance();
+        registry.install();
+        return new HbmzzModules(registry);
     }
 
-    private static ReactorRegistry discoverReactorRegistry() {
-        ServiceLoader<ReactorRegistry> loader = ServiceLoader.load(ReactorRegistry.class);
-        for (ReactorRegistry candidate : loader) {
-            return candidate;
-        }
-        throw new IllegalStateException(
-                "No ReactorRegistry implementation found; standalone 需要一个 reactor 实现"
-                        + "（通过 META-INF/services 注册，或显式注入）。");
-    }
-
-    /** 暴露 reactor 注册门面（仅接口），供模块按 id 注册/查询控制器。 */
+    /** 暴露 reactor 注册门面，供模块按 id 注册/查询控制器。 */
     public ReactorRegistry reactorRegistry() {
         return reactorRegistry;
     }
 
-    /** 便捷入口：把一个反应堆控制器注册到 reactor 门面。 */
-    public void registerReactor(String id, ReactorController controller) {
-        reactorRegistry.register(id, controller);
+    /** 便捷入口：把一个反应堆控制器注册到 reactor 门面（控制器自带 id，内部自注册）。 */
+    public void registerReactor(ReactorController controller) {
+        reactorRegistry.registerController(controller);
+    }
+
+    /** 按 id 查询已注册的反应堆控制器；不存在返回 {@code null}。 */
+    public ReactorController reactor(String id) {
+        return reactorRegistry.controller(id);
     }
 
     @Override
