@@ -74,6 +74,21 @@ echo
 run_lane "cursed-compat" "${COMPAT_CANDIDATES[@]}"
 echo
 
+# 1b) standalone 交叉编译证明（core + reactor + compat 一起 javac，无诅咒版类型）
+echo "== standalone 交叉编译 =="
+if [ -f "$SCRIPT_DIR/compile_standalone.sh" ]; then
+  bash "$SCRIPT_DIR/compile_standalone.sh"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    pass "compile-standalone" "core+reactor+compat 交叉编译通过"
+  else
+    fail "compile-standalone" "交叉编译失败，退出码=$rc"
+  fi
+else
+  skip "compile-standalone" "未找到 compile_standalone.sh"
+fi
+echo
+
 # 2) 汇总
 echo "==================== 汇总 ===================="
 for r in "${RESULTS[@]}"; do
