@@ -32,8 +32,9 @@ fi
 pass "core 未出现诅咒版包名"
 
 # ---------------------------------------------------------------------------
-# 3. core 对 reactor 的引用只通过接口/注册门面。
-#    这里做包名级 + 接口白名单断言；是否误 import 具体实现类，主代理合并时复核。
+# 3. core 对 reactor 的引用只落在白名单类型（ReactorRegistry / ReactorController）。
+#    reactor 是 final class + api 接口的组合，不是服务可发现的接口。
+#    具体是否误 import 其他实现类，主代理合并时复核。
 # ---------------------------------------------------------------------------
 REACTOR_IMPORTS="$(grep -RIn --include='*.java' -E '^[[:space:]]*import[[:space:]]+com\.hbmzz\.reactor\.' "$CORE_DIR" || true)"
 if [ -n "$REACTOR_IMPORTS" ]; then
@@ -42,11 +43,17 @@ if [ -n "$REACTOR_IMPORTS" ]; then
     cls="$(printf '%s\n' "$line" | sed -E 's/.*com\.hbmzz\.reactor\.([A-Za-z0-9_]+).*/\1/')"
     case "$cls" in
       ReactorRegistry|ReactorController) ;;
-      *) fail "core 直接 import 了非接口 reactor 类型: ${cls} （${line}）—— 主代理合并时请复核" ;;
+      *) fail "core 直接 import 了白名单外的 reactor 类型: ${cls} （${line}）—— 主代理合并时请复核" ;;
     esac
   done <<< "$REACTOR_IMPORTS"
 fi
-pass "core 对 reactor 的引用仅通过 ReactorRegistry/ReactorController 接口"
+pass "core 对 reactor 的引用仅落在 ReactorRegistry/ReactorController 白名单"
+
+# 不得残留旧 API 假设：ServiceLoader 发现 / register(String, ReactorController) 双参数
+if grep -RIn --include='*.java' -E 'ServiceLoader|registerReactor[[:space:]]*\([[:space:]]*String|reactorRegistry\.register\(' "$CORE_DIR"; then
+  fail "core 残留旧 reactor API 假设（ServiceLoader 发现或双参数 register）"
+fi
+pass "core 未残留旧 reactor API 假设"
 
 # ---------------------------------------------------------------------------
 # 4. 注册/启动入口存在
@@ -60,5 +67,12 @@ grep -q 'implements ModuleRegistry' "${CORE_DIR}/HbmzzModules.java" || fail "Hbm
 grep -q 'class StandaloneBootstrap' "${CORE_DIR}/StandaloneBootstrap.java" || fail "StandaloneBootstrap 缺失"
 grep -q 'StandaloneBootstrap start' "${CORE_DIR}/StandaloneBootstrap.java" || fail "StandaloneBootstrap 启动入口缺失"
 pass "模块注册门面与 standalone 启动入口存在"
+
+# 关键调用签名就位（防止回退到旧假设）
+grep -q 'ReactorRegistry.instance()' "${CORE_DIR}/HbmzzModules.java" || fail "createStandalone 未使用 ReactorRegistry.instance()"
+grep -q 'install()' "${CORE_DIR}/HbmzzModules.java" || fail "createStandalone 未调用 install()"
+grep -q 'registerController(controller)' "${CORE_DIR}/HbmzzModules.java" || fail "registerReactor 未转调 registerController"
+grep -q 'reactorRegistry.controller(id)' "${CORE_DIR}/HbmzzModules.java" || fail "按 id 查询未使用 reactorRegistry.controller(id)"
+pass "core 调用真实 reactor 签名的关键入口就位"
 
 echo "[OK] self-dependency 离线检查全部通过"

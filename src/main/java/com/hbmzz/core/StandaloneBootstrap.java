@@ -24,10 +24,10 @@ import com.hbmzz.reactor.ReactorRegistry;
 /**
  * standalone 启动入口。
  *
- * <p>负责装配 reactor 注册门面（ServiceLoader 发现或显式注入），构建
+ * <p>负责装配 reactor 注册门面（单例获取或显式注入），构建
  * {@link HbmzzModules}，并对外暴露启动 / tick / 关闭的生命周期方法。
  *
- * <p>只依赖 reactor 接口，不引用具体实现，也不依赖诅咒版。
+ * <p>只依赖自有 reactor 体系，不依赖诅咒版。
  */
 public final class StandaloneBootstrap {
 
@@ -37,7 +37,7 @@ public final class StandaloneBootstrap {
         this.modules = modules;
     }
 
-    /** 默认启动：由 HbmzzModules 通过 ServiceLoader 发现 reactor 实现。 */
+    /** 默认启动：由 HbmzzModules 取得 reactor 单例并安装为全局网关。 */
     public static StandaloneBootstrap start() {
         return start(HbmzzModules.createStandalone());
     }
@@ -49,7 +49,7 @@ public final class StandaloneBootstrap {
         return new StandaloneBootstrap(modules);
     }
 
-    /** 显式注入 reactor 注册门面（覆盖 ServiceLoader 发现），便于测试与共存模式适配。 */
+    /** 显式注入 reactor 注册门面（覆盖默认单例装配），便于测试与共存模式适配。 */
     public static StandaloneBootstrap withReactorRegistry(ReactorRegistry reactorRegistry) {
         return start(new HbmzzModules(reactorRegistry));
     }
